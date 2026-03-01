@@ -1,5 +1,9 @@
 require 'ruby2d'
 
+# comment exactly one of next two lines to select controls
+CONTROLS = "mouse"
+# CONTROLS = "arrows"
+# --------------------------------------------------------
 GRID_SIZE = 20
 GRID_WIDTH = 32
 GRID_HEIGHT = 24
@@ -9,18 +13,21 @@ set background: '#000055'
 set width: GRID_WIDTH * GRID_SIZE, height: GRID_HEIGHT * GRID_SIZE
 
 class Game
-  TICK_RATE = 0.15 # in seconds
-
   def initialize
     @snake = Snake.new
     @food = Food.new
     @last_tick = Time.now
     @renderer = GameRenderer.new(@snake, @food)
     @input = InputHandler.new(@snake)
+    @tick_rate = 0.15     # in seconds
   end
 
   def handle_key(key)
-    @input.handle(key)
+    @input.handle_key(key)
+  end
+
+  def handle_mouse_move(event)
+    @input.handle_mouse(event)
   end
 
   def update
@@ -33,7 +40,7 @@ class Game
   end
 
   def time_for_tick?
-    Time.now - @last_tick >= TICK_RATE
+    Time.now - @last_tick >= @tick_rate
   end
 
   def check_collisions
@@ -42,10 +49,12 @@ class Game
       @food.respawn
       @renderer.update_food
       @renderer.update_grow(@snake.get_head_position)
+      @tick_rate *= 0.98
     end
 
-    if @snake.collides_with_self? or @snake.collides_with_wall?
+    if @snake.collides_with_wall? or @snake.collides_with_self?
       restart
+      @tick_rate = 0.15
     end
   end
 
@@ -61,13 +70,34 @@ class InputHandler
     @snake = snake
   end
 
-  def handle(key)
-    case key
-    when "up"    then @snake.change_direction(:up)
-    when "down"  then @snake.change_direction(:down)
-    when "left"  then @snake.change_direction(:left)
-    when "right" then @snake.change_direction(:right)
+  def handle_key(key)
+    if CONTROLS == "arrows"
+      case key
+      when "up"    then @snake.change_direction(:up)
+      when "down"  then @snake.change_direction(:down)
+      when "left"  then @snake.change_direction(:left)
+      when "right" then @snake.change_direction(:right)
+      end
     end
+  end
+
+  def handle_mouse(event)
+    if CONTROLS == "mouse"
+      x_diff, y_diff = get_relative_mouse_position event.x, event.y
+      if x_diff.abs >= y_diff.abs
+        new_direction  = x_diff.positive? ? (:right) : (:left)
+      else
+        new_direction  = y_diff.positive? ? (:down) : (:up)
+      end
+      @snake.change_direction(new_direction)
+    end
+  end
+
+  def get_relative_mouse_position(mouse_x, mouse_y)
+    # get the difference of mouse position and a center of snake head
+    x_diff = mouse_x - (@snake.get_head_position[0] * GRID_SIZE - GRID_SIZE / 2)
+    y_diff = mouse_y - (@snake.get_head_position[1] * GRID_SIZE - GRID_SIZE / 2)
+    [x_diff, y_diff]
   end
 end
 
@@ -211,13 +241,14 @@ end
 
 game = Game.new
 
+on :mouse_move do |event|
+  game.handle_mouse_move(event)
+end
+
 on :key_down do |event|
   game.handle_key(event.key)
 end
 
-update do
-  game.update
-end
 update do
   game.update
 end
